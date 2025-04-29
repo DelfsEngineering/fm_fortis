@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" x-data="paymentApp()" x-init="init()">
+<head>
+  <meta charset="UTF-8">
+  <title>Fortis Payment</title>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://js.sandbox.fortis.tech/commercejs-v1.0.0.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; background-color: #f8f9fa; }
+    #payment { margin-top: 1rem; border: 1px solid #dee2e6; padding: 1.5rem; border-radius: 6px; background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h1 { color: #343a40; }
+    /* Basic styling for potential error messages */
+    .error { color: #dc3545; margin-top: 1rem; }
+    /* You can add more specific styling for the Elements iframe if needed */
+  </style>
+</head>
+<body class="font-sans p-8 bg-gray-100">
+
+  <h1 class="text-2xl font-semibold text-gray-700 mb-4">Enter Card Details</h1>
+
+  <!-- Container where Fortis Elements will be rendered -->
+  <div id="payment" class="mt-4 border border-gray-300 p-6 rounded-md bg-white shadow-md">
+      <!-- Fortis Elements iframe will appear here -->
+  </div>
+
+  <!-- Optional: Display error messages -->
+  <div x-text="errorMessage" class="text-red-600 mt-4"></div>
+
+  <script>
+    function paymentApp() {
+      return {
+        clientToken: '',
+        errorMessage: '', // For displaying errors
+        fileMakerCallbackScript: "HandleFortisResponse", // CHANGE THIS to your FM script name
+
+        init() {
+          console.log("Initializing payment app...");
+          // Get client_token from URL parameter 'token'
+          const params = new URLSearchParams(window.location.search);
+          this.clientToken = params.get("token");
+
+          if (!this.clientToken) {
+            this.errorMessage = "Error: Missing client token in URL.";
+            console.error("Client token not found in URL parameters.");
+            // Optionally call back to FM with error immediately
+            // this.callFileMakerWithError(this.errorMessage);
+            return;
+          }
+
+          console.log("Client token found:", this.clientToken ? 'Yes' : 'No');
+
+          try {
+            // Check if FileMaker object is available
+            if (typeof FileMaker === 'undefined' || typeof FileMaker.PerformScript === 'undefined') {
+                this.errorMessage = "Error: FileMaker context not detected. This page must run in a FileMaker Web Viewer.";
+                console.error("FileMaker.PerformScript is not available.");
+                return; // Stop initialization if not in FM context
+            }
+
+            const elements = new Commerce.elements(this.clientToken);
+            console.log("Fortis Elements initialized.");
+
+            // Listen for the 'done' event from Fortis Elements
+            elements.on('done', (payload) => {
+              console.log("Fortis 'done' event received:", payload);
+              // Extract the ticket_id (token)
+              const ticketId = payload.data?.id;
+
+              if (ticketId) {
+                console.log("Ticket ID obtained:", ticketId);
+                this.errorMessage = ''; // Clear any previous errors
+                // <<< Prepare success payload >>>
+                const successPayload = JSON.stringify({ success: true, ticketId: ticketId });
+                console.log("Calling FileMaker script:", this.fileMakerCallbackScript, "with payload:", successPayload);
+                // <<< Call FileMaker using FileMaker.PerformScript >>>
+                FileMaker.PerformScript(this.fileMakerCallbackScript, successPayload);
+              } else {
+                // Handle cases where 'done' event fired but no ticketId was found
+                console.error("Failed to capture token. Payload:", payload);
+                this.errorMessage = "Error: Failed to capture payment token. Please check details or try again.";
+                // <<< Prepare error payload >>>
+                const errorPayload = JSON.stringify({ success: false, error: this.errorMessage, details: payload });
+                console.log("Calling FileMaker script:", this.fileMakerCallbackScript, "with error payload:", errorPayload);
+                // <<< Call FileMaker using FileMaker.PerformScript >>>
+                FileMaker.PerformScript(this.fileMakerCallbackScript, errorPayload);
+              }
+            });
+
+             // Listen for the 'error' event from Fortis Elements
+             elements.on('error', (error) => {
+                console.error("Fortis Elements Error:", error);
+                // Display a generic error or parse the error object for details
+                this.errorMessage = `Error: ${error.message || 'An issue occurred with the payment form.'}`;
+                // <<< Prepare error payload >>>
+                const errorPayload = JSON.stringify({ success: false, error: this.errorMessage, details: error });
+                console.log("Calling FileMaker script:", this.fileMakerCallbackScript, "with error payload:", errorPayload);
+                // <<< Call FileMaker using FileMaker.PerformScript >>>
+                this.callFileMakerWithError(this.errorMessage, error);
+             });
+
+            // Create and render the Elements iframe
+            elements.create({
+              container: '#payment', // Target the div with id="payment"
+              theme: 'default',     // Use default theme (can be customized)
+              showSubmitButton: true // Show the submit button within the iframe
+            });
+            console.log("Fortis Elements create called.");
+
+          } catch (error) {
+             console.error("Error initializing Fortis Elements:", error);
+             this.errorMessage = "Error: Could not initialize payment form.";
+             this.callFileMakerWithError(this.errorMessage, error);
+          }
+        },
+
+        // Helper function to call FileMaker with an error
+        callFileMakerWithError(message, details = null) {
+            if (typeof FileMaker !== 'undefined' && typeof FileMaker.PerformScript !== 'undefined') {
+                const errorPayload = JSON.stringify({ success: false, error: message, details: details });
+                console.log("Calling FileMaker script:", this.fileMakerCallbackScript, "with error payload:", errorPayload);
+                FileMaker.PerformScript(this.fileMakerCallbackScript, errorPayload);
+            }
+        }
+      }
+    }
+  </script>
+</body>
+</html> 
