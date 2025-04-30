@@ -27,8 +27,8 @@ This project provides an HTML page (`index.html`) designed to be used within a F
     *   Alternatively, if hosting isn't feasible, the HTML can be embedded directly in the Web Viewer calculation using a `data:` URL, substituting the token value within the HTML string.
 4.  **Render Form (`index.html`):** The `index.html` page uses Alpine.js (`init()` function):
     *   Extracts the `client_token` from the URL.
-    *   Checks if the `FileMaker.PerformScript` function is available (confirming it's running in a FileMaker Web Viewer).
-    *   Initializes Fortis Commerce.js (`Commerce.elements`) with the token.
+    *   **Waits for `FileMaker.PerformScript`:** Checks periodically for the `FileMaker.PerformScript` function to become available. This handles potential delays in the FileMaker Web Viewer injecting the necessary JavaScript object, preventing errors during initialization.
+    *   Initializes Fortis Commerce.js (`Commerce.elements`) with the token *after* the FileMaker object is confirmed.
     *   Renders the secure Fortis Elements payment iframe inside the `<div id="payment">`.
 5.  **User Input:** The user enters their card details directly into the secure Fortis iframe.
 6.  **Tokenization (`index.html`):** When the user submits the form within the iframe:
