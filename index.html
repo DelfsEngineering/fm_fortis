@@ -35,6 +35,7 @@
         fileMakerCallbackScript: "HandleFortisResponse", // CHANGE THIS to your FM script name
         fmCheckInterval: null,
         fmCheckTimeout: 5000, // Wait 5 seconds for FileMaker object
+        isFortisInitialized: false, // Flag to prevent re-initialization
 
         init() {
           console.log("Initializing payment app...");
@@ -84,6 +85,11 @@
         },
 
         initializeFortis() {
+          // Check if already initialized
+          if (this.isFortisInitialized) {
+            console.log("Fortis initialization already attempted. Skipping.");
+            return;
+          }
           console.log("Initializing Fortis Elements...");
           try {
             // FileMaker check is done in waitForFileMaker
@@ -133,6 +139,8 @@
               showSubmitButton: true // Show the submit button within the iframe
             });
             console.log("Fortis Elements create called.");
+            // Set flag to prevent re-initialization
+            this.isFortisInitialized = true;
 
           } catch (error) {
              console.error("Error initializing Fortis Elements:", error);
