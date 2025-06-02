@@ -31,6 +31,7 @@
         clientToken: '',
         errorMessage: '', // For displaying errors
         fileMakerCallbackScript: '', // Initialize as empty, will get from URL
+        viewType: 'default', // Default view type
         fmCheckInterval: null,
         fmCheckTimeout: 5000, // Wait 5 seconds for FileMaker object
         isFortisInitialized: false, // Flag to prevent re-initialization
@@ -41,9 +42,13 @@
           const params = new URLSearchParams(window.location.search);
           this.clientToken = params.get("token");
           this.fileMakerCallbackScript = params.get("script"); // Get script name from URL
+          const urlViewType = params.get("view_type");
+          if (urlViewType) {
+            this.viewType = urlViewType;
+          }
 
           if (!this.clientToken) {
-            this.errorMessage = "Error: Missing client token in URL.";
+            this.errorMessage = "Error: Missing client 'token in URL.";
             console.error("Client token not found in URL parameters.");
             // Cannot call FileMaker here as it might not exist yet
             return;
@@ -52,12 +57,13 @@
           // Check if script name was provided
           if (!this.fileMakerCallbackScript) {
             this.errorMessage = "Error: Missing FileMaker script name in URL.";
-            console.error("FileMaker script name not found in URL parameters.");
+            console.error("FileMaker 'script' name not found in URL parameters.");
             return;
           }
 
           console.log("Client token found:", this.clientToken ? 'Yes' : 'No');
           console.log("FileMaker script name found:", this.fileMakerCallbackScript);
+          console.log("View type selected:", this.viewType);
 
           // Wait for FileMaker object
           this.waitForFileMaker();
@@ -143,9 +149,10 @@
             elements.create({
               container: '#payment', // Target the div with id="payment"
               theme: 'default',     // Use default theme (can be customized)
-              showSubmitButton: true // Show the submit button within the iframe
+              showSubmitButton: true, // Show the submit button within the iframe
+              view: this.viewType    // Add the view type
             });
-            console.log("Fortis Elements create called.");
+            console.log("Fortis Elements create called with view:", this.viewType);
             // Set flag to prevent re-initialization
             this.isFortisInitialized = true;
 
