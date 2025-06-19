@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Fortis Payment</title>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-  <script src="https://js.sandbox.fortis.tech/commercejs-v1.0.0.min.js"></script>
+  <!-- Fortis script will be loaded dynamically based on env parameter -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: sans-serif; padding: 2rem; background-color: #f8f9fa; }
@@ -32,19 +32,25 @@
         errorMessage: '', // For displaying errors
         fileMakerCallbackScript: '', // Initialize as empty, will get from URL
         viewType: 'default', // Default view type
+        environment: 'production', // Default environment
         fmCheckInterval: null,
         fmCheckTimeout: 5000, // Wait 5 seconds for FileMaker object
         isFortisInitialized: false, // Flag to prevent re-initialization
+        fortisScriptLoaded: false, // Flag to track if Fortis script is loaded
 
         init() {
           console.log("Initializing payment app...");
-          // Get client_token from URL parameter 'token'
+          // Get parameters from URL
           const params = new URLSearchParams(window.location.search);
           this.clientToken = params.get("token");
           this.fileMakerCallbackScript = params.get("script"); // Get script name from URL
           const urlViewType = params.get("view_type");
           if (urlViewType) {
             this.viewType = urlViewType;
+          }
+          const urlEnvironment = params.get("env");
+          if (urlEnvironment && (urlEnvironment === 'sandbox' || urlEnvironment === 'production')) {
+            this.environment = urlEnvironment;
           }
 
           if (!this.clientToken) {
@@ -64,9 +70,33 @@
           console.log("Client token found:", this.clientToken ? 'Yes' : 'No');
           console.log("FileMaker script name found:", this.fileMakerCallbackScript);
           console.log("View type selected:", this.viewType);
+          console.log("Environment selected:", this.environment);
 
-          // Wait for FileMaker object
-          this.waitForFileMaker();
+          // Load Fortis script dynamically based on environment
+          this.loadFortisScript();
+        },
+
+        loadFortisScript() {
+          const scriptUrl = this.environment === 'sandbox' 
+            ? 'https://js.sandbox.fortis.tech/commercejs-v1.0.0.min.js'
+            : 'https://js.fortis.tech/commercejs-v1.0.0.min.js';
+          
+          console.log("Loading Fortis script from:", scriptUrl);
+          
+          const script = document.createElement('script');
+          script.src = scriptUrl;
+          script.onload = () => {
+            console.log("Fortis script loaded successfully");
+            this.fortisScriptLoaded = true;
+            // Wait for FileMaker object after script is loaded
+            this.waitForFileMaker();
+          };
+          script.onerror = () => {
+            console.error("Failed to load Fortis script from:", scriptUrl);
+            this.errorMessage = "Error: Failed to load Fortis payment library.";
+            this.callFileMakerWithError(this.errorMessage, { scriptUrl });
+          };
+          document.head.appendChild(script);
         },
 
         waitForFileMaker() {
@@ -103,6 +133,15 @@
             console.log("Fortis initialization already attempted. Skipping.");
             return;
           }
+          
+          // Check if Fortis script is loaded
+          if (!this.fortisScriptLoaded || typeof Commerce === 'undefined') {
+            console.error("Fortis script not loaded or Commerce object not available");
+            this.errorMessage = "Error: Fortis payment library not available.";
+            this.callFileMakerWithError(this.errorMessage, null);
+            return;
+          }
+          
           console.log("Initializing Fortis Elements...");
           try {
             // FileMaker check is done in waitForFileMaker
