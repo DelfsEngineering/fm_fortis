@@ -181,7 +181,14 @@
                 const successPayload = JSON.stringify({ success: true, ticketId: ticketId });
                 console.log("Calling FileMaker script:", this.fileMakerCallbackScript, "with payload:", successPayload);
                 // <<< Call FileMaker using FileMaker.PerformScript >>>
-                FileMaker.PerformScript(this.fileMakerCallbackScript, successPayload);
+                try {
+                  FileMaker.PerformScript(this.fileMakerCallbackScript, successPayload);
+                } catch (error) {
+                  console.error("Error calling FileMaker.PerformScript for success:", error);
+                  console.error("Script name:", this.fileMakerCallbackScript);
+                  console.error("Success payload:", successPayload);
+                  this.errorMessage = "Payment successful but failed to notify FileMaker: " + error.message;
+                }
               } else {
                 // Handle cases where 'done' event fired but no ticketId was found
                 console.error("Failed to capture token. Payload:", payload);
@@ -225,9 +232,16 @@
         callFileMakerWithError(message, details = null) {
             // Check again in case it appeared after initial failure but before this call
             if (typeof FileMaker !== 'undefined' && typeof FileMaker.PerformScript !== 'undefined') {
-                const errorPayload = JSON.stringify({ success: false, error: message, details: details });
-                console.log("Calling FileMaker script:", this.fileMakerCallbackScript, "with error payload:", errorPayload);
-                FileMaker.PerformScript(this.fileMakerCallbackScript, errorPayload);
+                try {
+                    const errorPayload = JSON.stringify({ success: false, error: message, details: details });
+                    console.log("Calling FileMaker script:", this.fileMakerCallbackScript, "with error payload:", errorPayload);
+                    FileMaker.PerformScript(this.fileMakerCallbackScript, errorPayload);
+                } catch (error) {
+                    console.error("Error calling FileMaker.PerformScript:", error);
+                    console.error("Script name:", this.fileMakerCallbackScript);
+                    console.error("Payload:", { success: false, error: message, details: details });
+                    this.errorMessage = message + " (Failed to call FileMaker script: " + error.message + ")";
+                }
             } else {
                 console.error("Cannot call FileMaker.PerformScript - FileMaker object not available.", { message, details });
                 // Update local error message if FileMaker isn't available
