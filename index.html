@@ -37,6 +37,7 @@
         fmCheckTimeout: 5000, // Wait 5 seconds for FileMaker object
         isFortisInitialized: false, // Flag to prevent re-initialization
         fortisScriptLoaded: false, // Flag to track if Fortis script is loaded
+        isWaitingForFileMaker: false, // Flag to prevent multiple waitForFileMaker calls
 
         init() {
           console.log("Initializing payment app...");
@@ -100,24 +101,42 @@
         },
 
         waitForFileMaker() {
+            // Prevent multiple calls to waitForFileMaker
+            if (this.isWaitingForFileMaker) {
+                console.log("Already waiting for FileMaker object. Skipping duplicate call.");
+                return;
+            }
+            
             console.log("Checking for FileMaker object...");
             if (typeof FileMaker !== 'undefined' && typeof FileMaker.PerformScript !== 'undefined') {
                 console.log("FileMaker object found. Proceeding with initialization.");
                 this.initializeFortis();
             } else {
                 console.log("FileMaker object not yet available. Starting poll...");
+                this.isWaitingForFileMaker = true; // Set flag to prevent duplicate calls
+                
+                // Clear any existing interval first to prevent multiple intervals
+                if (this.fmCheckInterval) {
+                    clearInterval(this.fmCheckInterval);
+                    this.fmCheckInterval = null;
+                }
+                
                 let elapsedTime = 0;
                 const pollInterval = 100; // Check every 100ms
 
                 this.fmCheckInterval = setInterval(() => {
                     if (typeof FileMaker !== 'undefined' && typeof FileMaker.PerformScript !== 'undefined') {
                         clearInterval(this.fmCheckInterval);
+                        this.fmCheckInterval = null; // Clear the reference
+                        this.isWaitingForFileMaker = false; // Reset flag
                         console.log("FileMaker object detected after polling.");
                         this.initializeFortis();
                     } else {
                         elapsedTime += pollInterval;
                         if (elapsedTime >= this.fmCheckTimeout) {
                             clearInterval(this.fmCheckInterval);
+                            this.fmCheckInterval = null; // Clear the reference
+                            this.isWaitingForFileMaker = false; // Reset flag
                             this.errorMessage = "Error: FileMaker context not detected within timeout. This page must run in a FileMaker Web Viewer.";
                             console.error("FileMaker.PerformScript not available after timeout.");
                             // We can't reliably call FileMaker here if it never appeared.
