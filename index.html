@@ -40,9 +40,18 @@
         isWaitingForFileMaker: false, // Flag to prevent multiple waitForFileMaker calls
 
         init() {
+          console.log("=== PAYMENT APP INITIALIZATION DEBUG ===");
           console.log("Initializing payment app...");
+          console.log("Page URL:", window.location.href);
+          console.log("Referrer:", document.referrer);
+          console.log("User Agent:", navigator.userAgent);
+          console.log("Timestamp:", new Date().toISOString());
+          console.log("=== END INITIALIZATION DEBUG ===");
+          
           // Get parameters from URL
           const params = new URLSearchParams(window.location.search);
+          console.log("URL Parameters:", Object.fromEntries(params));
+          
           this.clientToken = params.get("token");
           this.fileMakerCallbackScript = params.get("script"); // Get script name from URL
           const urlViewType = params.get("view_type");
@@ -82,20 +91,38 @@
             ? 'https://js.sandbox.fortis.tech/commercejs-v1.0.0.min.js'
             : 'https://js.fortis.tech/commercejs-v1.0.0.min.js';
           
+          console.log("=== FORTIS SCRIPT LOADING DEBUG ===");
+          console.log("Environment:", this.environment);
           console.log("Loading Fortis script from:", scriptUrl);
+          console.log("User Agent:", navigator.userAgent);
+          console.log("Current domain:", window.location.hostname);
+          console.log("Current protocol:", window.location.protocol);
+          console.log("=== END SCRIPT LOADING DEBUG ===");
           
           const script = document.createElement('script');
           script.src = scriptUrl;
           script.onload = () => {
-            console.log("Fortis script loaded successfully");
+            console.log("=== FORTIS SCRIPT LOADED SUCCESSFULLY ===");
+            console.log("Script URL:", scriptUrl);
+            console.log("Commerce object available:", typeof Commerce !== 'undefined');
+            if (typeof Commerce !== 'undefined') {
+              console.log("Commerce version:", Commerce.version || "unknown");
+              console.log("Commerce.elements available:", typeof Commerce.elements !== 'undefined');
+            }
+            console.log("=== END SCRIPT LOADED DEBUG ===");
             this.fortisScriptLoaded = true;
             // Wait for FileMaker object after script is loaded
             this.waitForFileMaker();
           };
-          script.onerror = () => {
+          script.onerror = (event) => {
+            console.error("=== FORTIS SCRIPT LOADING ERROR ===");
             console.error("Failed to load Fortis script from:", scriptUrl);
+            console.error("Error event:", event);
+            console.error("Script element:", script);
+            console.error("Network status:", navigator.onLine ? "online" : "offline");
+            console.error("=== END SCRIPT LOADING ERROR ===");
             this.errorMessage = "Error: Failed to load Fortis payment library.";
-            this.callFileMakerWithError(this.errorMessage, { scriptUrl });
+            this.callFileMakerWithError(this.errorMessage, { scriptUrl, event });
           };
           document.head.appendChild(script);
         },
@@ -162,15 +189,25 @@
           }
           
           console.log("Initializing Fortis Elements...");
+          
+          // Log client token details (partially masked for security)
+          const tokenPreview = this.clientToken ? 
+            this.clientToken.substring(0, 20) + "..." + this.clientToken.substring(this.clientToken.length - 10) 
+            : "null";
+          console.log("Client token preview:", tokenPreview);
+          console.log("Token length:", this.clientToken ? this.clientToken.length : 0);
+          
           try {
             // FileMaker check is done in waitForFileMaker
 
             const elements = new Commerce.elements(this.clientToken);
             console.log("Fortis Elements initialized.");
+            console.log("Commerce.elements version:", Commerce.version || "unknown");
 
             // Listen for the 'done' event from Fortis Elements
             elements.on('done', (payload) => {
               console.log("Fortis 'done' event received:", payload);
+              console.log("Full payload structure:", JSON.stringify(payload, null, 2));
               // Extract the ticket_id (token)
               const ticketId = payload.data?.id;
 
@@ -203,26 +240,73 @@
 
              // Listen for the 'error' event from Fortis Elements
              elements.on('error', (error) => {
-                console.error("Fortis Elements Error:", error);
-                // Display a generic error or parse the error object for details
-                this.errorMessage = `Error: ${error.message || 'An issue occurred with the payment form.'}`;
+                console.error("=== FORTIS ELEMENTS ERROR DEBUG ===");
+                console.error("Full error object:", error);
+                console.error("Error type:", typeof error);
+                console.error("Error constructor:", error?.constructor?.name);
+                
+                // Log all error properties
+                if (error && typeof error === 'object') {
+                  console.error("Error keys:", Object.keys(error));
+                  console.error("Error stringified:", JSON.stringify(error, null, 2));
+                  
+                  // Check for common error properties
+                  if (error.message) console.error("Error message:", error.message);
+                  if (error.code) console.error("Error code:", error.code);
+                  if (error.type) console.error("Error type:", error.type);
+                  if (error.id) console.error("Error ID:", error.id);
+                  if (error.status) console.error("Error status:", error.status);
+                  if (error.statusText) console.error("Error statusText:", error.statusText);
+                  if (error.details) console.error("Error details:", error.details);
+                  if (error.data) console.error("Error data:", error.data);
+                  if (error.response) console.error("Error response:", error.response);
+                  if (error.request) console.error("Error request:", error.request);
+                }
+                
+                console.error("Current environment:", this.environment);
+                console.error("Script URL used:", this.environment === 'sandbox' 
+                  ? 'https://js.sandbox.fortis.tech/commercejs-v1.0.0.min.js'
+                  : 'https://js.fortis.tech/commercejs-v1.0.0.min.js');
+                console.error("Client token preview:", tokenPreview);
+                console.error("=== END FORTIS ERROR DEBUG ===");
+                
+                // Display a more detailed error message
+                let errorMessage = "Error: An issue occurred with the payment form.";
+                if (error?.message) {
+                  errorMessage = `Error: ${error.message}`;
+                } else if (error?.code) {
+                  errorMessage = `Error: Fortis error code ${error.code}`;
+                } else if (error?.type) {
+                  errorMessage = `Error: Fortis error type ${error.type}`;
+                }
+                
+                this.errorMessage = errorMessage;
                 // <<< Prepare error payload >>>
-                 this.callFileMakerWithError(this.errorMessage, error);
+                this.callFileMakerWithError(this.errorMessage, error);
              });
 
             // Create and render the Elements iframe
-            elements.create({
+            console.log("Creating Fortis Elements with config:");
+            const elementsConfig = {
               container: '#payment', // Target the div with id="payment"
               theme: 'default',     // Use default theme (can be customized)
               showSubmitButton: true, // Show the submit button within the iframe
               view: this.viewType    // Add the view type
-            });
+            };
+            console.log("Elements config:", JSON.stringify(elementsConfig, null, 2));
+            
+            elements.create(elementsConfig);
             console.log("Fortis Elements create called with view:", this.viewType);
             // Set flag to prevent re-initialization
             this.isFortisInitialized = true;
 
           } catch (error) {
-             console.error("Error initializing Fortis Elements:", error);
+             console.error("=== JAVASCRIPT ERROR IN initializeFortis ===");
+             console.error("Caught JavaScript error:", error);
+             console.error("Error name:", error.name);
+             console.error("Error message:", error.message);
+             console.error("Error stack:", error.stack);
+             console.error("=== END JAVASCRIPT ERROR ===");
              this.errorMessage = "Error: Could not initialize payment form.";
              this.callFileMakerWithError(this.errorMessage, error);
           }
