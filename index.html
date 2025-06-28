@@ -288,10 +288,11 @@
             // Create and render the Elements iframe
             console.log("Creating Fortis Elements with config:");
             const elementsConfig = {
-              container: '#payment', // Target the div with id="payment"
-              theme: 'default',     // Use default theme (can be customized)
-              showSubmitButton: true, // Show the submit button within the iframe
-              view: this.viewType    // Add the view type
+              container: '#payment',
+              theme: 'default',
+              showSubmitButton: true,
+              view: this.viewType,
+              environment: this.environment
             };
             console.log("Elements config:", JSON.stringify(elementsConfig, null, 2));
             
